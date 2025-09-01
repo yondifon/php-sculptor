@@ -7,77 +7,95 @@ use PhpParser\NodeVisitorAbstract;
 
 class AddTraitVisitor extends NodeVisitorAbstract
 {
-    private string $traitName;
+    public function __construct(private readonly string $traitName) {}
 
-    public function __construct(string $traitName)
+    public function leaveNode(Node $node): ?Node
     {
-        $this->traitName = $traitName;
-    }
+        if (! ($node instanceof Node\Stmt\Class_)) {
+            return null;
+        }
 
-    public function leaveNode(Node $node)
-    {
-        if ($node instanceof Node\Stmt\Class_) {
-            // Check if trait already exists
-            foreach ($node->stmts as $stmt) {
-                if ($stmt instanceof Node\Stmt\TraitUse) {
-                    foreach ($stmt->traits as $trait) {
-                        if ($trait->toString() === $this->traitName) {
-                            // Trait already exists, skip
-                            return $node;
-                        }
-                    }
-                }
-            }
-
-            // Add new trait use statement
-            $traitUse = new Node\Stmt\TraitUse([
-                new Node\Name($this->traitName)
-            ]);
-
-            // Find the best position to insert the trait
-            $insertIndex = $this->findTraitInsertPosition($node->stmts);
-            
-            // Insert the trait use statement
-            array_splice($node->stmts, $insertIndex, 0, [$traitUse]);
-            
+        if ($this->traitAlreadyExists($node)) {
             return $node;
         }
 
-        return null;
+        $this->addTraitToClass($node);
+
+        return $node;
+    }
+
+    private function traitAlreadyExists(Node\Stmt\Class_ $class): bool
+    {
+        foreach ($class->stmts as $stmt) {
+            if (! ($stmt instanceof Node\Stmt\TraitUse)) {
+                continue;
+            }
+
+            foreach ($stmt->traits as $trait) {
+                if ($trait->toString() === $this->traitName) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function addTraitToClass(Node\Stmt\Class_ $class): void
+    {
+        $traitUse = new Node\Stmt\TraitUse([
+            new Node\Name($this->traitName),
+        ]);
+
+        $insertIndex = $this->findTraitInsertPosition($class->stmts);
+        array_splice($class->stmts, $insertIndex, 0, [$traitUse]);
     }
 
     private function findTraitInsertPosition(array $stmts): int
     {
-        $lastTraitIndex = -1;
-        $firstPropertyIndex = -1;
-        $firstMethodIndex = -1;
+        $positions = $this->analyzeStatementPositions($stmts);
+
+        if ($positions['lastTrait'] !== -1) {
+            return $positions['lastTrait'] + 1;
+        }
+
+        if ($positions['firstProperty'] !== -1) {
+            return $positions['firstProperty'];
+        }
+
+        if ($positions['firstMethod'] !== -1) {
+            return $positions['firstMethod'];
+        }
+
+        return 0;
+    }
+
+    private function analyzeStatementPositions(array $stmts): array
+    {
+        $positions = [
+            'lastTrait' => -1,
+            'firstProperty' => -1,
+            'firstMethod' => -1,
+        ];
 
         foreach ($stmts as $index => $stmt) {
-            if ($stmt instanceof Node\Stmt\TraitUse && $lastTraitIndex === -1) {
-                $lastTraitIndex = $index;
-            } elseif ($stmt instanceof Node\Stmt\Property && $firstPropertyIndex === -1) {
-                $firstPropertyIndex = $index;
-            } elseif ($stmt instanceof Node\Stmt\ClassMethod && $firstMethodIndex === -1) {
-                $firstMethodIndex = $index;
+            if ($stmt instanceof Node\Stmt\TraitUse) {
+                $positions['lastTrait'] = $index;
+
+                continue;
+            }
+
+            if ($stmt instanceof Node\Stmt\Property && $positions['firstProperty'] === -1) {
+                $positions['firstProperty'] = $index;
+
+                continue;
+            }
+
+            if ($stmt instanceof Node\Stmt\ClassMethod && $positions['firstMethod'] === -1) {
+                $positions['firstMethod'] = $index;
             }
         }
 
-        // Insert after the last existing trait
-        if ($lastTraitIndex !== -1) {
-            return $lastTraitIndex + 1;
-        }
-
-        // Insert before the first property
-        if ($firstPropertyIndex !== -1) {
-            return $firstPropertyIndex;
-        }
-
-        // Insert before the first method
-        if ($firstMethodIndex !== -1) {
-            return $firstMethodIndex;
-        }
-
-        // Insert at the beginning if no traits, properties, or methods exist
-        return 0;
+        return $positions;
     }
 }

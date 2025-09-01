@@ -9,42 +9,61 @@ use PhpParser\ParserFactory;
 
 class AddMethodVisitor extends NodeVisitorAbstract
 {
-    private string $methodName;
-    private array $parameters;
-    private string $body;
-    private string $visibility;
-    private Parser $parser;
+    private readonly Parser $parser;
 
-    public function __construct(string $methodName, array $parameters = [], string $body = '', string $visibility = 'public')
-    {
-        $this->methodName = $methodName;
-        $this->parameters = $parameters;
-        $this->body = $body;
-        $this->visibility = $visibility;
-        $this->parser = (new ParserFactory())->createForNewestSupportedVersion();
+    public function __construct(
+        private readonly string $methodName,
+        private readonly array $parameters = [],
+        private readonly string $body = '',
+        private readonly string $visibility = 'public',
+        private readonly bool $override = false
+    ) {
+        $this->parser = (new ParserFactory)->createForNewestSupportedVersion();
     }
 
-    public function leaveNode(Node $node)
+    public function leaveNode(Node $node): ?Node
     {
-        if ($node instanceof Node\Stmt\Class_) {
-            // Check if method already exists
-            foreach ($node->stmts as $stmt) {
-                if ($stmt instanceof Node\Stmt\ClassMethod && $stmt->name->toString() === $this->methodName) {
-                    // Method already exists, skip
-                    return $node;
-                }
-            }
-
-            // Create the new method
-            $method = $this->createMethod();
-            
-            // Add to the end of class statements
-            $node->stmts[] = $method;
-            
-            return $node;
+        if (! ($node instanceof Node\Stmt\Class_)) {
+            return null;
         }
 
-        return null;
+        $existingMethodIndex = $this->findExistingMethodIndex($node);
+
+        if ($existingMethodIndex !== -1) {
+            return $this->handleExistingMethod($node, $existingMethodIndex);
+        }
+
+        return $this->addNewMethod($node);
+    }
+
+    private function findExistingMethodIndex(Node\Stmt\Class_ $class): int
+    {
+        foreach ($class->stmts as $index => $stmt) {
+            if ($stmt instanceof Node\Stmt\ClassMethod && $stmt->name->toString() === $this->methodName) {
+                return $index;
+            }
+        }
+
+        return -1;
+    }
+
+    private function handleExistingMethod(Node\Stmt\Class_ $class, int $index): Node\Stmt\Class_
+    {
+        if (! $this->override) {
+            return $class;
+        }
+
+        $class->stmts[$index] = $this->createMethod();
+
+        return $class;
+    }
+
+    private function addNewMethod(Node\Stmt\Class_ $class): Node\Stmt\Class_
+    {
+        $method = $this->createMethod();
+        $class->stmts[] = $method;
+
+        return $class;
     }
 
     private function createMethod(): Node\Stmt\ClassMethod
@@ -60,47 +79,11 @@ class AddMethodVisitor extends NodeVisitorAbstract
         // Build parameters
         $params = [];
         foreach ($this->parameters as $param) {
-            if (is_string($param)) {
-                // Simple parameter name
-                $params[] = new Node\Param(new Node\Expr\Variable($param));
-            } elseif (is_array($param)) {
-                // Parameter with type and/or default value
-                $paramNode = new Node\Param(new Node\Expr\Variable($param['name']));
-                
-                if (isset($param['type'])) {
-                    $paramNode->type = new Node\Identifier($param['type']);
-                }
-                
-                if (isset($param['default'])) {
-                    $paramNode->default = $this->parseValue($param['default']);
-                }
-                
-                $params[] = $paramNode;
-            }
+            $params[] = $this->createParameter($param);
         }
 
         // Parse method body
-        $stmts = [];
-        if (!empty($this->body)) {
-            try {
-                // Wrap in PHP tags for parsing
-                $code = "<?php {$this->body}";
-                $parsed = $this->parser->parse($code);
-                $stmts = $parsed ?: [];
-            } catch (\Exception $e) {
-                // If parsing fails, create a simple statement
-                $stmts = [
-                    new Node\Stmt\Expression(
-                        new Node\Expr\Throw_(
-                            new Node\Expr\New_(
-                                new Node\Name('Exception'),
-                                [new Node\Arg(new Node\Scalar\String_('Method not implemented'))]
-                            )
-                        )
-                    )
-                ];
-            }
-        }
+        $stmts = $this->parseMethodBody();
 
         return new Node\Stmt\ClassMethod(
             $this->methodName,
@@ -121,9 +104,62 @@ class AddMethodVisitor extends NodeVisitorAbstract
             is_bool($value) => new Node\Expr\ConstFetch(new Node\Name($value ? 'true' : 'false')),
             is_null($value) => new Node\Expr\ConstFetch(new Node\Name('null')),
             is_array($value) => new Node\Expr\Array_(
-                array_map(fn($v) => new Node\Expr\ArrayItem($this->parseValue($v)), $value)
+                array_map(fn ($v) => new Node\Expr\ArrayItem($this->parseValue($v)), $value)
             ),
             default => new Node\Expr\ConstFetch(new Node\Name('null')),
         };
+    }
+
+    private function createParameter(mixed $param): Node\Param
+    {
+        if (is_string($param)) {
+            return new Node\Param(new Node\Expr\Variable($param));
+        }
+
+        if (! is_array($param)) {
+            return new Node\Param(new Node\Expr\Variable('param'));
+        }
+
+        $paramNode = new Node\Param(new Node\Expr\Variable($param['name']));
+
+        if (isset($param['type'])) {
+            $paramNode->type = new Node\Identifier($param['type']);
+        }
+
+        if (isset($param['default'])) {
+            $paramNode->default = $this->parseValue($param['default']);
+        }
+
+        return $paramNode;
+    }
+
+    private function parseMethodBody(): array
+    {
+        if ($this->body === '') {
+            return [];
+        }
+
+        try {
+            $code = '<?php '.$this->body;
+            $parsed = $this->parser->parse($code);
+
+            return $parsed ?: [];
+        } catch (\Throwable) {
+            return $this->createParsingFailedStatement();
+        }
+    }
+
+    private function createParsingFailedStatement(): array
+    {
+        return [
+            new Node\Stmt\Expression(
+                new Node\Expr\Throw_(
+                    new Node\Expr\New_(
+                        new Node\Name('Exception'),
+                        [new Node\Arg(new Node\Scalar\String_('Method not implemented: parsing failed'))]
+                    )
+                )
+            ),
+        ];
     }
 }

@@ -7,47 +7,52 @@ use PhpParser\NodeVisitorAbstract;
 
 class AddPropertyVisitor extends NodeVisitorAbstract
 {
-    private string $propertyName;
-    private mixed $default;
-    private string $visibility;
-    private ?string $type;
+    private const NO_DEFAULT = '___NO_DEFAULT___';
 
-    public function __construct(string $propertyName, mixed $default = null, string $visibility = 'protected', ?string $type = null)
+    public function __construct(
+        private readonly string $propertyName,
+        private readonly mixed $default = self::NO_DEFAULT,
+        private readonly string $visibility = 'protected',
+        private readonly ?string $type = null
+    ) {}
+
+    public function leaveNode(Node $node): ?Node
     {
-        $this->propertyName = $propertyName;
-        $this->default = $default;
-        $this->visibility = $visibility;
-        $this->type = $type;
-    }
+        if (! ($node instanceof Node\Stmt\Class_)) {
+            return null;
+        }
 
-    public function leaveNode(Node $node)
-    {
-        if ($node instanceof Node\Stmt\Class_) {
-            // Check if property already exists
-            foreach ($node->stmts as $stmt) {
-                if ($stmt instanceof Node\Stmt\Property) {
-                    foreach ($stmt->props as $prop) {
-                        if ($prop->name->toString() === $this->propertyName) {
-                            // Property already exists, skip
-                            return $node;
-                        }
-                    }
-                }
-            }
-
-            // Create the new property
-            $property = $this->createProperty();
-            
-            // Find the best position to insert the property
-            $insertIndex = $this->findPropertyInsertPosition($node->stmts);
-            
-            // Insert the property
-            array_splice($node->stmts, $insertIndex, 0, [$property]);
-            
+        if ($this->propertyAlreadyExists($node)) {
             return $node;
         }
 
-        return null;
+        $this->addPropertyToClass($node);
+
+        return $node;
+    }
+
+    private function propertyAlreadyExists(Node\Stmt\Class_ $class): bool
+    {
+        foreach ($class->stmts as $stmt) {
+            if (! ($stmt instanceof Node\Stmt\Property)) {
+                continue;
+            }
+
+            foreach ($stmt->props as $prop) {
+                if ($prop->name->toString() === $this->propertyName) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function addPropertyToClass(Node\Stmt\Class_ $class): void
+    {
+        $property = $this->createProperty();
+        $insertIndex = $this->findPropertyInsertPosition($class->stmts);
+        array_splice($class->stmts, $insertIndex, 0, [$property]);
     }
 
     private function createProperty(): Node\Stmt\Property
@@ -60,10 +65,12 @@ class AddPropertyVisitor extends NodeVisitorAbstract
             default => Node\Stmt\Class_::MODIFIER_PROTECTED,
         };
 
-        // Create property item
+        // Create property item - only add default if one was explicitly provided
+        $default = $this->createDefaultValue();
+
         $propertyItem = new Node\PropertyItem(
             $this->propertyName,
-            $this->default !== null ? $this->parseValue($this->default) : null
+            $default
         );
 
         // Create the property statement
@@ -82,37 +89,59 @@ class AddPropertyVisitor extends NodeVisitorAbstract
 
     private function findPropertyInsertPosition(array $stmts): int
     {
-        $lastTraitIndex = -1;
-        $lastPropertyIndex = -1;
-        $firstMethodIndex = -1;
+        $positions = $this->analyzeStatementPositions($stmts);
+
+        if ($positions['lastProperty'] !== -1) {
+            return $positions['lastProperty'] + 1;
+        }
+
+        if ($positions['lastTrait'] !== -1) {
+            return $positions['lastTrait'] + 1;
+        }
+
+        if ($positions['firstMethod'] !== -1) {
+            return $positions['firstMethod'];
+        }
+
+        return 0;
+    }
+
+    private function analyzeStatementPositions(array $stmts): array
+    {
+        $positions = [
+            'lastTrait' => -1,
+            'lastProperty' => -1,
+            'firstMethod' => -1,
+        ];
 
         foreach ($stmts as $index => $stmt) {
             if ($stmt instanceof Node\Stmt\TraitUse) {
-                $lastTraitIndex = $index;
-            } elseif ($stmt instanceof Node\Stmt\Property) {
-                $lastPropertyIndex = $index;
-            } elseif ($stmt instanceof Node\Stmt\ClassMethod && $firstMethodIndex === -1) {
-                $firstMethodIndex = $index;
+                $positions['lastTrait'] = $index;
+
+                continue;
+            }
+
+            if ($stmt instanceof Node\Stmt\Property) {
+                $positions['lastProperty'] = $index;
+
+                continue;
+            }
+
+            if ($stmt instanceof Node\Stmt\ClassMethod && $positions['firstMethod'] === -1) {
+                $positions['firstMethod'] = $index;
             }
         }
 
-        // Insert after the last existing property
-        if ($lastPropertyIndex !== -1) {
-            return $lastPropertyIndex + 1;
+        return $positions;
+    }
+
+    private function createDefaultValue(): ?Node\Expr
+    {
+        if ($this->default === self::NO_DEFAULT) {
+            return null;
         }
 
-        // Insert after traits
-        if ($lastTraitIndex !== -1) {
-            return $lastTraitIndex + 1;
-        }
-
-        // Insert before the first method
-        if ($firstMethodIndex !== -1) {
-            return $firstMethodIndex;
-        }
-
-        // Insert at the beginning
-        return 0;
+        return $this->parseValue($this->default);
     }
 
     private function parseValue(mixed $value): Node\Expr
@@ -124,7 +153,7 @@ class AddPropertyVisitor extends NodeVisitorAbstract
             is_bool($value) => new Node\Expr\ConstFetch(new Node\Name($value ? 'true' : 'false')),
             is_null($value) => new Node\Expr\ConstFetch(new Node\Name('null')),
             is_array($value) => new Node\Expr\Array_(
-                array_map(fn($v, $k) => new Node\Expr\ArrayItem(
+                array_map(fn ($v, $k) => new Node\Expr\ArrayItem(
                     $this->parseValue($v),
                     is_string($k) ? new Node\Scalar\String_($k) : null
                 ), $value, array_keys($value))

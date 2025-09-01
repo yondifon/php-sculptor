@@ -1,0 +1,35 @@
+<?php
+
+namespace Malico\PhpSculptor\Visitors;
+
+use PhpParser\Node;
+use PhpParser\NodeVisitor;
+use PhpParser\NodeVisitorAbstract;
+
+class RemoveUseStatementVisitor extends NodeVisitorAbstract
+{
+    public function __construct(
+        private readonly string $className
+    ) {}
+
+    public function leaveNode(Node $node): int|Node|null
+    {
+        if ($node instanceof Node\Stmt\Use_) {
+            foreach ($node->uses as $key => $use) {
+                if ($use->name->toString() === $this->className) {
+                    // If this is the only use in the statement, remove the entire statement
+                    if (count($node->uses) === 1) {
+                        return NodeVisitor::REMOVE_NODE;
+                    }
+
+                    unset($node->uses[$key]);
+                    $node->uses = array_values($node->uses);
+
+                    return $node;
+                }
+            }
+        }
+
+        return $node;
+    }
+}

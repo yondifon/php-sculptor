@@ -2,30 +2,35 @@
 
 namespace Malico\PhpSculptor;
 
-use PhpParser\Node;
+use InvalidArgumentException;
 use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitorAbstract;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
 
 class Sculptor
 {
-    private Parser $parser;
-    private NodeTraverser $traverser;
-    private Standard $printer;
-    private string $filePath;
+    private readonly Parser $parser;
+
+    private readonly NodeTraverser $traverser;
+
+    private readonly Standard $printer;
+
+    private readonly string $filePath;
+
     private ?string $originalCode = null;
+
     private array $ast = [];
+
     private array $pendingModifications = [];
 
     public function __construct(string $filePath)
     {
         $this->filePath = $filePath;
-        $this->parser = (new ParserFactory())->createForNewestSupportedVersion();
-        $this->traverser = new NodeTraverser();
-        $this->printer = new Standard();
-        
+        $this->parser = (new ParserFactory)->createForNewestSupportedVersion();
+        $this->traverser = new NodeTraverser;
+        $this->printer = new Standard;
+
         $this->loadFile();
     }
 
@@ -36,12 +41,21 @@ class Sculptor
 
     private function loadFile(): void
     {
-        if (!file_exists($this->filePath)) {
-            throw new \InvalidArgumentException("File not found: {$this->filePath}");
+        if (! file_exists($this->filePath)) {
+            throw new InvalidArgumentException('File not found: '.$this->filePath);
         }
 
         $this->originalCode = file_get_contents($this->filePath);
+
+        if ($this->originalCode === false) {
+            throw new InvalidArgumentException('Unable to read file: '.$this->filePath);
+        }
+
         $this->ast = $this->parser->parse($this->originalCode);
+
+        if ($this->ast === null) {
+            throw new InvalidArgumentException('Unable to parse PHP file: '.$this->filePath);
+        }
     }
 
     public function addTrait(string $trait): self
@@ -50,11 +64,11 @@ class Sculptor
             'type' => 'add_trait',
             'trait' => $trait,
         ];
-        
+
         return $this;
     }
 
-    public function addMethod(string $name, array $parameters = [], string $body = '', string $visibility = 'public'): self
+    public function addMethod(string $name, array $parameters = [], string $body = '', string $visibility = 'public', bool $override = false): self
     {
         $this->pendingModifications[] = [
             'type' => 'add_method',
@@ -62,8 +76,9 @@ class Sculptor
             'parameters' => $parameters,
             'body' => $body,
             'visibility' => $visibility,
+            'override' => $override,
         ];
-        
+
         return $this;
     }
 
@@ -74,9 +89,9 @@ class Sculptor
             'name' => $name,
             'default' => $default,
             'visibility' => $visibility,
-            'type' => $type,
+            'property_type' => $type,
         ];
-        
+
         return $this;
     }
 
@@ -86,7 +101,7 @@ class Sculptor
             'type' => 'implement_interface',
             'interface' => $interface,
         ];
-        
+
         return $this;
     }
 
@@ -96,7 +111,7 @@ class Sculptor
             'type' => 'extend_class',
             'parent' => $parentClass,
         ];
-        
+
         return $this;
     }
 
@@ -107,7 +122,7 @@ class Sculptor
             'property' => $property,
             'additions' => $additions,
         ];
-        
+
         return $this;
     }
 
@@ -118,60 +133,234 @@ class Sculptor
             'class' => $class,
             'alias' => $alias,
         ];
-        
+
         return $this;
     }
 
-    public function addToFillable(array $fields): self
+    // Property modification methods
+    public function changeProperty(string $name, mixed $newDefault = null, ?string $newVisibility = null, ?string $newType = null): self
     {
-        return $this->extendArrayProperty('fillable', $fields);
+        $this->pendingModifications[] = [
+            'type' => 'change_property',
+            'name' => $name,
+            'default' => $newDefault,
+            'visibility' => $newVisibility,
+            'property_type' => $newType,
+        ];
+
+        return $this;
     }
 
-    public function addToCasts(array $casts): self
+    public function changePropertyType(string $name, string $newType): self
     {
-        return $this->extendArrayProperty('casts', $casts);
+        $this->pendingModifications[] = [
+            'type' => 'change_property_type',
+            'name' => $name,
+            'property_type' => $newType,
+        ];
+
+        return $this;
     }
 
-    public function addToHidden(array $fields): self
+    public function changePropertyDefault(string $name, mixed $newDefault): self
     {
-        return $this->extendArrayProperty('hidden', $fields);
+        $this->pendingModifications[] = [
+            'type' => 'change_property_default',
+            'name' => $name,
+            'default' => $newDefault,
+        ];
+
+        return $this;
     }
 
-    public function hasMethod(string $name): bool
+    public function changePropertyVisibility(string $name, string $newVisibility): self
     {
-        // Implementation for querying existing methods
-        // Will traverse AST to check if method exists
-        return false; // Placeholder
+        $this->pendingModifications[] = [
+            'type' => 'change_property_visibility',
+            'name' => $name,
+            'visibility' => $newVisibility,
+        ];
+
+        return $this;
     }
 
-    public function hasTrait(string $trait): bool
+    public function removeProperty(string $name): self
     {
-        // Implementation for querying existing traits
-        return false; // Placeholder
+        $this->pendingModifications[] = [
+            'type' => 'remove_property',
+            'name' => $name,
+        ];
+
+        return $this;
+    }
+
+    // Method modification methods
+    public function changeMethod(string $name, ?array $parameters = null, ?string $body = null, ?string $visibility = null): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'change_method',
+            'name' => $name,
+            'parameters' => $parameters,
+            'body' => $body,
+            'visibility' => $visibility,
+        ];
+
+        return $this;
+    }
+
+    public function changeMethodBody(string $name, string $newBody): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'change_method_body',
+            'name' => $name,
+            'body' => $newBody,
+        ];
+
+        return $this;
+    }
+
+    public function changeMethodVisibility(string $name, string $newVisibility): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'change_method_visibility',
+            'name' => $name,
+            'visibility' => $newVisibility,
+        ];
+
+        return $this;
+    }
+
+    public function removeMethod(string $name): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'remove_method',
+            'name' => $name,
+        ];
+
+        return $this;
+    }
+
+    // Class modification methods
+    public function changeClassName(string $newName): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'change_class_name',
+            'name' => $newName,
+        ];
+
+        return $this;
+    }
+
+    public function addConstant(string $name, mixed $value, string $visibility = 'public'): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'add_constant',
+            'name' => $name,
+            'value' => $value,
+            'visibility' => $visibility,
+        ];
+
+        return $this;
+    }
+
+    public function changeConstant(string $name, mixed $newValue, ?string $newVisibility = null): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'change_constant',
+            'name' => $name,
+            'value' => $newValue,
+            'visibility' => $newVisibility,
+        ];
+
+        return $this;
+    }
+
+    public function removeConstant(string $name): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'remove_constant',
+            'name' => $name,
+        ];
+
+        return $this;
+    }
+
+    public function removeTrait(string $trait): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'remove_trait',
+            'trait' => $trait,
+        ];
+
+        return $this;
+    }
+
+    public function removeUseStatement(string $class): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'remove_use_statement',
+            'class' => $class,
+        ];
+
+        return $this;
+    }
+
+    // File-level operations
+    public function addNamespace(string $namespace): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'add_namespace',
+            'namespace' => $namespace,
+        ];
+
+        return $this;
+    }
+
+    public function changeNamespace(string $newNamespace): self
+    {
+        $this->pendingModifications[] = [
+            'type' => 'change_namespace',
+            'namespace' => $newNamespace,
+        ];
+
+        return $this;
+    }
+
+    // Extensible visitor registration
+    public function addVisitor(string $type, callable|string $visitorFactory): self
+    {
+        $this->pendingModifications[] = [
+            'type' => $type,
+            'visitor_factory' => $visitorFactory,
+        ];
+
+        return $this;
     }
 
     public function save(?string $outputPath = null): self
     {
         $outputPath = $outputPath ?? $this->filePath;
-        
+
         // Apply all pending modifications
         $this->applyModifications();
-        
+
         // Generate modified code
         $modifiedCode = $this->printer->prettyPrintFile($this->ast);
-        
+
         // Write to file
         file_put_contents($outputPath, $modifiedCode);
-        
+
         return $this;
     }
 
     public function backup(string $backupPath): self
     {
-        if ($this->originalCode) {
-            file_put_contents($backupPath, $this->originalCode);
+        if (! $this->originalCode) {
+            return $this;
         }
-        
+
+        file_put_contents($backupPath, $this->originalCode);
+
         return $this;
     }
 
@@ -179,6 +368,7 @@ class Sculptor
     {
         // Apply modifications and return as string without saving
         $this->applyModifications();
+
         return $this->printer->prettyPrintFile($this->ast);
     }
 
@@ -187,26 +377,56 @@ class Sculptor
         foreach ($this->pendingModifications as $modification) {
             $this->applyModification($modification);
         }
-        
+
         // Clear pending modifications after applying
         $this->pendingModifications = [];
     }
 
     private function applyModification(array $modification): void
     {
-        $visitor = match ($modification['type']) {
+        $visitor = $this->createVisitor($modification);
+
+        $this->traverser->addVisitor($visitor);
+        $this->ast = $this->traverser->traverse($this->ast);
+        $this->traverser->removeVisitor($visitor);
+    }
+
+    private function createVisitor(array $modification): object
+    {
+        if (isset($modification['visitor_factory'])) {
+            return $this->createCustomVisitor($modification);
+        }
+
+        return $this->createBuiltinVisitor($modification);
+    }
+
+    private function createCustomVisitor(array $modification): object
+    {
+        $factory = $modification['visitor_factory'];
+
+        if (is_callable($factory)) {
+            return $factory($modification);
+        }
+
+        return new $factory($modification);
+    }
+
+    private function createBuiltinVisitor(array $modification): object
+    {
+        return match ($modification['type']) {
             'add_trait' => new Visitors\AddTraitVisitor($modification['trait']),
             'add_method' => new Visitors\AddMethodVisitor(
                 $modification['name'],
                 $modification['parameters'],
                 $modification['body'],
-                $modification['visibility']
+                $modification['visibility'],
+                $modification['override'] ?? false
             ),
             'add_property' => new Visitors\AddPropertyVisitor(
                 $modification['name'],
                 $modification['default'],
                 $modification['visibility'],
-                $modification['type']
+                $modification['property_type']
             ),
             'extend_array_property' => new Visitors\ExtendArrayPropertyVisitor(
                 $modification['property'],
@@ -216,11 +436,59 @@ class Sculptor
                 $modification['class'],
                 $modification['alias']
             ),
-            default => throw new \InvalidArgumentException("Unknown modification type: {$modification['type']}")
+            'change_property' => new Visitors\ChangePropertyVisitor(
+                $modification['name'],
+                $modification['default'],
+                $modification['visibility'],
+                $modification['property_type']
+            ),
+            'change_property_type' => new Visitors\ChangePropertyTypeVisitor(
+                $modification['name'],
+                $modification['property_type']
+            ),
+            'change_property_default' => new Visitors\ChangePropertyDefaultVisitor(
+                $modification['name'],
+                $modification['default']
+            ),
+            'change_property_visibility' => new Visitors\ChangePropertyVisibilityVisitor(
+                $modification['name'],
+                $modification['visibility']
+            ),
+            'remove_property' => new Visitors\RemovePropertyVisitor($modification['name']),
+            'change_method' => new Visitors\ChangeMethodVisitor(
+                $modification['name'],
+                $modification['parameters'],
+                $modification['body'],
+                $modification['visibility']
+            ),
+            'change_method_body' => new Visitors\ChangeMethodBodyVisitor(
+                $modification['name'],
+                $modification['body']
+            ),
+            'change_method_visibility' => new Visitors\ChangeMethodVisibilityVisitor(
+                $modification['name'],
+                $modification['visibility']
+            ),
+            'remove_method' => new Visitors\RemoveMethodVisitor($modification['name']),
+            'change_class_name' => new Visitors\ChangeClassNameVisitor($modification['name']),
+            'add_constant' => new Visitors\AddConstantVisitor(
+                $modification['name'],
+                $modification['value'],
+                $modification['visibility']
+            ),
+            'change_constant' => new Visitors\ChangeConstantVisitor(
+                $modification['name'],
+                $modification['value'],
+                $modification['visibility']
+            ),
+            'remove_constant' => new Visitors\RemoveConstantVisitor($modification['name']),
+            'remove_trait' => new Visitors\RemoveTraitVisitor($modification['trait']),
+            'remove_use_statement' => new Visitors\RemoveUseStatementVisitor($modification['class']),
+            'add_namespace' => new Visitors\AddNamespaceVisitor($modification['namespace']),
+            'change_namespace' => new Visitors\ChangeNamespaceVisitor($modification['namespace']),
+            'implement_interface' => throw new InvalidArgumentException('Interface implementation not yet implemented'),
+            'extend_class' => throw new InvalidArgumentException('Class extension not yet implemented'),
+            default => throw new InvalidArgumentException('Unknown modification type: '.$modification['type'])
         };
-
-        $this->traverser->addVisitor($visitor);
-        $this->ast = $this->traverser->traverse($this->ast);
-        $this->traverser->removeVisitor($visitor);
     }
 }

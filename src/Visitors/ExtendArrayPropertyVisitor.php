@@ -7,25 +7,33 @@ use PhpParser\NodeVisitorAbstract;
 
 class ExtendArrayPropertyVisitor extends NodeVisitorAbstract
 {
-    private string $propertyName;
-    private array $additions;
+    public function __construct(
+        private readonly string $propertyName,
+        private readonly array $additions
+    ) {}
 
-    public function __construct(string $propertyName, array $additions)
+    public function leaveNode(Node $node): ?Node
     {
-        $this->propertyName = $propertyName;
-        $this->additions = $additions;
+        if (! ($node instanceof Node\Stmt\Property)) {
+            return null;
+        }
+
+        $targetProperty = $this->findTargetProperty($node);
+
+        if (! $targetProperty instanceof \PhpParser\Node\PropertyItem) {
+            return null;
+        }
+
+        $this->extendPropertyArray($targetProperty);
+
+        return $node;
     }
 
-    public function leaveNode(Node $node)
+    private function findTargetProperty(Node\Stmt\Property $property): ?Node\PropertyItem
     {
-        if ($node instanceof Node\Stmt\Property) {
-            // Check if this is the property we want to modify
-            foreach ($node->props as $prop) {
-                if ($prop->name->toString() === $this->propertyName) {
-                    // Found the property, extend its array value
-                    $this->extendPropertyArray($prop);
-                    return $node;
-                }
+        foreach ($property->props as $prop) {
+            if ($prop->name->toString() === $this->propertyName) {
+                return $prop;
             }
         }
 
@@ -34,13 +42,13 @@ class ExtendArrayPropertyVisitor extends NodeVisitorAbstract
 
     private function extendPropertyArray(Node\PropertyItem $property): void
     {
-        if (!$property->default instanceof Node\Expr\Array_) {
+        if (! $property->default instanceof Node\Expr\Array_) {
             // Property is not an array, convert it to one or skip
-            $property->default = new Node\Expr\Array_();
+            $property->default = new Node\Expr\Array_;
         }
 
         $existingValues = [];
-        
+
         // Collect existing values to avoid duplicates
         foreach ($property->default->items as $item) {
             if ($item && $item->value instanceof Node\Scalar\String_) {
@@ -51,34 +59,12 @@ class ExtendArrayPropertyVisitor extends NodeVisitorAbstract
         // Add new items that don't already exist
         foreach ($this->additions as $key => $value) {
             if (is_int($key)) {
-                // Numeric key, treat as array value
-                if (!in_array($value, $existingValues)) {
-                    $property->default->items[] = new Node\Expr\ArrayItem(
-                        new Node\Scalar\String_($value)
-                    );
-                }
-            } else {
-                // Associative array
-                $found = false;
-                foreach ($property->default->items as $item) {
-                    if ($item && 
-                        $item->key instanceof Node\Scalar\String_ && 
-                        $item->key->value === $key) {
-                        // Update existing key
-                        $item->value = $this->parseValue($value);
-                        $found = true;
-                        break;
-                    }
-                }
-                
-                if (!$found) {
-                    // Add new key-value pair
-                    $property->default->items[] = new Node\Expr\ArrayItem(
-                        $this->parseValue($value),
-                        new Node\Scalar\String_($key)
-                    );
-                }
+                $this->addNumericArrayItem($property, $value, $existingValues);
+
+                continue;
             }
+
+            $this->addAssociativeArrayItem($property, $key, $value);
         }
     }
 
@@ -91,12 +77,58 @@ class ExtendArrayPropertyVisitor extends NodeVisitorAbstract
             is_bool($value) => new Node\Expr\ConstFetch(new Node\Name($value ? 'true' : 'false')),
             is_null($value) => new Node\Expr\ConstFetch(new Node\Name('null')),
             is_array($value) => new Node\Expr\Array_(
-                array_map(fn($v, $k) => new Node\Expr\ArrayItem(
+                array_map(fn ($v, $k) => new Node\Expr\ArrayItem(
                     $this->parseValue($v),
                     is_string($k) ? new Node\Scalar\String_($k) : null
                 ), $value, array_keys($value))
             ),
             default => new Node\Expr\ConstFetch(new Node\Name('null')),
         };
+    }
+
+    private function addNumericArrayItem(Node\PropertyItem $property, string $value, array $existingValues): void
+    {
+        if (in_array($value, $existingValues)) {
+            return;
+        }
+
+        $property->default->items[] = new Node\Expr\ArrayItem(
+            new Node\Scalar\String_($value)
+        );
+    }
+
+    private function addAssociativeArrayItem(Node\PropertyItem $property, string $key, mixed $value): void
+    {
+        $existingItem = $this->findExistingAssociativeItem($property, $key);
+
+        if ($existingItem instanceof \PhpParser\Node\Expr\ArrayItem) {
+            $existingItem->value = $this->parseValue($value);
+
+            return;
+        }
+
+        $property->default->items[] = new Node\Expr\ArrayItem(
+            $this->parseValue($value),
+            new Node\Scalar\String_($key)
+        );
+    }
+
+    private function findExistingAssociativeItem(Node\PropertyItem $property, string $key): ?Node\Expr\ArrayItem
+    {
+        foreach ($property->default->items as $item) {
+            if (! $item) {
+                continue;
+            }
+
+            if (! ($item->key instanceof Node\Scalar\String_)) {
+                continue;
+            }
+
+            if ($item->key->value === $key) {
+                return $item;
+            }
+        }
+
+        return null;
     }
 }
