@@ -1,0 +1,44 @@
+{
+  "name": "malico/php-sculptor",
+  "description": "Programmatically modify PHP code with a fluent, intuitive API",
+  "keywords": [
+    "php",
+    "ast",
+    "code-generation",
+    "code-modification",
+    "static-analysis"
+  ],
+  "license": "MIT",
+  "support": {
+    "issues": "https://github.com/malico/php-sculptor/issues",
+    "source": "https://github.com/malico/php-sculptor"
+  },
+  "authors": [
+    {
+      "name": "Malico",
+      "email": "yong@malico.me"
+    }
+  ],
+  "require": {
+    "php": "^8.0",
+    "nikic/php-parser": "^5.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Malico\\PhpSculptor\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Malico\\PhpSculptor\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
