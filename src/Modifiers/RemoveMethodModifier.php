@@ -1,11 +1,11 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class RemoveMethodVisitor extends NodeVisitorAbstract
+class RemoveMethodModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $methodName

@@ -1,11 +1,11 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class AddPropertyVisitor extends NodeVisitorAbstract
+class AddPropertyModifier extends NodeVisitorAbstract
 {
     private const NO_DEFAULT = '___NO_DEFAULT___';
 
@@ -57,15 +57,13 @@ class AddPropertyVisitor extends NodeVisitorAbstract
 
     private function createProperty(): Node\Stmt\Property
     {
-        // Convert visibility string to flag
         $flags = match ($this->visibility) {
-            'private' => Node\Stmt\Class_::MODIFIER_PRIVATE,
-            'protected' => Node\Stmt\Class_::MODIFIER_PROTECTED,
-            'public' => Node\Stmt\Class_::MODIFIER_PUBLIC,
-            default => Node\Stmt\Class_::MODIFIER_PROTECTED,
+            'private' => \PhpParser\Modifiers::PRIVATE,
+            'protected' => \PhpParser\Modifiers::PROTECTED,
+            'public' => \PhpParser\Modifiers::PUBLIC,
+            default => \PhpParser\Modifiers::PROTECTED,
         };
 
-        // Create property item - only add default if one was explicitly provided
         $default = $this->createDefaultValue();
 
         $propertyItem = new Node\PropertyItem(
@@ -73,13 +71,11 @@ class AddPropertyVisitor extends NodeVisitorAbstract
             $default
         );
 
-        // Create the property statement
         $property = new Node\Stmt\Property(
             $flags,
             [$propertyItem]
         );
 
-        // Add type if specified
         if ($this->type) {
             $property->type = new Node\Identifier($this->type);
         }

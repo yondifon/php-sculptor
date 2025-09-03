@@ -54,7 +54,7 @@ class UseStatementOperationsTest extends SculptorTestBase
         $result = $sculptor
             ->addUseStatement('Malico\\Teams\\HasTeams')
             ->addUseStatement('Malico\\Permissions\\HasPermissions')
-            ->addUseStatement('Carbon\\Carbon')
+            ->addUseStatement(\Carbon\Carbon::class)
             ->toString();
 
         $this->assertStringContainsString('use Malico\\Teams\\HasTeams;', $result);

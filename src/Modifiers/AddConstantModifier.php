@@ -1,16 +1,16 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class ChangeConstantVisitor extends NodeVisitorAbstract
+class AddConstantModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $constantName,
-        private readonly mixed $newValue,
-        private readonly ?string $newVisibility = null
+        private readonly mixed $value,
+        private readonly string $visibility = 'public'
     ) {}
 
     public function leaveNode(Node $node): ?Node
@@ -23,24 +23,24 @@ class ChangeConstantVisitor extends NodeVisitorAbstract
             if ($stmt instanceof Node\Stmt\ClassConst) {
                 foreach ($stmt->consts as $const) {
                     if ($const->name->toString() === $this->constantName) {
-                        // Update value
-                        $const->value = $this->parseValue($this->newValue);
-
-                        // Update visibility if provided
-                        if ($this->newVisibility !== null) {
-                            $stmt->flags = match ($this->newVisibility) {
-                                'private' => Node\Stmt\Class_::MODIFIER_PRIVATE,
-                                'protected' => Node\Stmt\Class_::MODIFIER_PROTECTED,
-                                'public' => Node\Stmt\Class_::MODIFIER_PUBLIC,
-                                default => $stmt->flags,
-                            };
-                        }
-
                         return $node;
                     }
                 }
             }
         }
+
+        $flags = match ($this->visibility) {
+            'private' => \PhpParser\Modifiers::PRIVATE,
+            'protected' => \PhpParser\Modifiers::PROTECTED,
+            'public' => \PhpParser\Modifiers::PUBLIC,
+            default => \PhpParser\Modifiers::PUBLIC,
+        };
+
+        $constant = new Node\Stmt\ClassConst([
+            new Node\Const_($this->constantName, $this->parseValue($this->value)),
+        ], $flags);
+
+        array_unshift($node->stmts, $constant);
 
         return $node;
     }

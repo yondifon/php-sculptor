@@ -1,13 +1,13 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 
-class ChangeMethodBodyVisitor extends NodeVisitorAbstract
+class ChangeMethodBodyModifier extends NodeVisitorAbstract
 {
     private readonly Parser $parser;
 

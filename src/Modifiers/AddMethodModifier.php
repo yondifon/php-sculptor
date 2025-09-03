@@ -1,13 +1,13 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 
-class AddMethodVisitor extends NodeVisitorAbstract
+class AddMethodModifier extends NodeVisitorAbstract
 {
     private readonly Parser $parser;
 
@@ -68,21 +68,18 @@ class AddMethodVisitor extends NodeVisitorAbstract
 
     private function createMethod(): Node\Stmt\ClassMethod
     {
-        // Convert visibility string to flag
         $flags = match ($this->visibility) {
-            'private' => Node\Stmt\Class_::MODIFIER_PRIVATE,
-            'protected' => Node\Stmt\Class_::MODIFIER_PROTECTED,
-            'public' => Node\Stmt\Class_::MODIFIER_PUBLIC,
-            default => Node\Stmt\Class_::MODIFIER_PUBLIC,
+            'private' => \PhpParser\Modifiers::PRIVATE,
+            'protected' => \PhpParser\Modifiers::PROTECTED,
+            'public' => \PhpParser\Modifiers::PUBLIC,
+            default => \PhpParser\Modifiers::PUBLIC,
         };
 
-        // Build parameters
         $params = [];
         foreach ($this->parameters as $param) {
             $params[] = $this->createParameter($param);
         }
 
-        // Parse method body
         $stmts = $this->parseMethodBody();
 
         return new Node\Stmt\ClassMethod(

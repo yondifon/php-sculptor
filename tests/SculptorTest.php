@@ -2,8 +2,8 @@
 
 namespace Malico\PhpSculptor\Tests;
 
+use Malico\PhpSculptor\ModifierFactory;
 use Malico\PhpSculptor\Sculptor;
-use Malico\PhpSculptor\VisitorFactory;
 use PHPUnit\Framework\TestCase;
 
 class SculptorTest extends TestCase
@@ -50,10 +50,6 @@ class TestClass extends Authenticatable
         unlink($this->testFilePath);
     }
 
-    // =================================================================
-    // TRAIT OPERATIONS
-    // =================================================================
-
     public function test_can_add_trait()
     {
         $sculptor = new Sculptor($this->testFilePath);
@@ -87,10 +83,6 @@ class TestClass extends Authenticatable
         $this->assertEquals(1, substr_count($result, 'use HasTeams;'));
     }
 
-    // =================================================================
-    // USE STATEMENT OPERATIONS
-    // =================================================================
-
     public function test_can_add_use_statement()
     {
         $sculptor = new Sculptor($this->testFilePath);
@@ -121,10 +113,6 @@ class TestClass extends Authenticatable
 
         $this->assertEquals(1, substr_count($result, 'use Malico\\Teams\\HasTeams;'));
     }
-
-    // =================================================================
-    // PROPERTY ADDITION OPERATIONS
-    // =================================================================
 
     public function test_can_add_property()
     {
@@ -165,10 +153,6 @@ class TestClass extends Authenticatable
 
         $this->assertStringContainsString('protected array $permissions = [\'read\', \'write\'];', $result);
     }
-
-    // =================================================================
-    // PROPERTY MODIFICATION OPERATIONS
-    // =================================================================
 
     public function test_can_change_property_type()
     {
@@ -223,10 +207,6 @@ class TestClass extends Authenticatable
         $this->assertStringNotContainsString('$name', $result);
     }
 
-    // =================================================================
-    // ARRAY PROPERTY OPERATIONS
-    // =================================================================
-
     public function test_can_extend_array_property()
     {
         $sculptor = new Sculptor($this->testFilePath);
@@ -248,10 +228,6 @@ class TestClass extends Authenticatable
         $this->assertStringContainsString('role', $result);
         $this->assertStringContainsString('status', $result);
     }
-
-    // =================================================================
-    // METHOD ADDITION OPERATIONS
-    // =================================================================
 
     public function test_can_add_method()
     {
@@ -297,10 +273,6 @@ class TestClass extends Authenticatable
         $this->assertStringContainsString('protected function validateInput()', $result);
     }
 
-    // =================================================================
-    // METHOD OVERRIDE PROTECTION
-    // =================================================================
-
     public function test_cannot_override_existing_method_by_default()
     {
         $sculptor = new Sculptor($this->testFilePath);
@@ -325,16 +297,12 @@ class TestClass extends Authenticatable
         $this->assertStringNotContainsString('return $this->name;', $result);
     }
 
-    // =================================================================
-    // EXTENSIBLE VISITOR ARCHITECTURE
-    // =================================================================
-
     public function test_visitor_factory_can_create_visitor()
     {
-        $visitor = VisitorFactory::make('ChangeProperty', ['status', 'active', 'public', 'string']);
+        $visitor = ModifierFactory::make('ChangeProperty', ['status', 'active', 'public', 'string']);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\ChangePropertyVisitor',
+            \Malico\PhpSculptor\Modifiers\ChangePropertyModifier::class,
             $visitor
         );
     }
@@ -342,14 +310,10 @@ class TestClass extends Authenticatable
     public function test_visitor_factory_throws_exception_for_invalid_visitor()
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Visitor class does not exist');
+        $this->expectExceptionMessage('Modifier class does not exist');
 
-        VisitorFactory::make('NonExistentVisitor', []);
+        ModifierFactory::make('NonExistentModifier', []);
     }
-
-    // =================================================================
-    // COMPLEX FLUENT INTERFACE OPERATIONS
-    // =================================================================
 
     public function test_complex_fluent_interface_operations()
     {
@@ -371,10 +335,6 @@ class TestClass extends Authenticatable
         $this->assertStringContainsString('function getCurrentTeam()', $result);
         $this->assertStringContainsString('protected string $id', $result);
     }
-
-    // =================================================================
-    // FILE OPERATIONS
-    // =================================================================
 
     public function test_can_save_modifications()
     {
@@ -423,10 +383,6 @@ class TestClass extends Authenticatable
 
         unlink($backupFile);
     }
-
-    // =================================================================
-    // ERROR HANDLING
-    // =================================================================
 
     public function test_throws_exception_for_non_existent_file()
     {

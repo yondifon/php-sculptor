@@ -1,12 +1,12 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitor;
 use PhpParser\NodeVisitorAbstract;
 
-class RemoveUseStatementVisitor extends NodeVisitorAbstract
+class RemoveUseStatementModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $className
@@ -17,7 +17,6 @@ class RemoveUseStatementVisitor extends NodeVisitorAbstract
         if ($node instanceof Node\Stmt\Use_) {
             foreach ($node->uses as $key => $use) {
                 if ($use->name->toString() === $this->className) {
-                    // If this is the only use in the statement, remove the entire statement
                     if (count($node->uses) === 1) {
                         return NodeVisitor::REMOVE_NODE;
                     }

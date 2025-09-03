@@ -1,11 +1,11 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class ChangeNamespaceVisitor extends NodeVisitorAbstract
+class ChangeNamespaceModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $newNamespace

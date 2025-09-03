@@ -1,15 +1,16 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class ChangePropertyDefaultVisitor extends NodeVisitorAbstract
+class ChangeConstantModifier extends NodeVisitorAbstract
 {
     public function __construct(
-        private readonly string $propertyName,
-        private readonly mixed $newDefault
+        private readonly string $constantName,
+        private readonly mixed $newValue,
+        private readonly ?string $newVisibility = null
     ) {}
 
     public function leaveNode(Node $node): ?Node
@@ -19,15 +20,22 @@ class ChangePropertyDefaultVisitor extends NodeVisitorAbstract
         }
 
         foreach ($node->stmts as $stmt) {
-            if (! ($stmt instanceof Node\Stmt\Property)) {
-                continue;
-            }
+            if ($stmt instanceof Node\Stmt\ClassConst) {
+                foreach ($stmt->consts as $const) {
+                    if ($const->name->toString() === $this->constantName) {
+                        $const->value = $this->parseValue($this->newValue);
 
-            foreach ($stmt->props as $prop) {
-                if ($prop->name->toString() === $this->propertyName) {
-                    $prop->default = $this->parseValue($this->newDefault);
+                        if ($this->newVisibility !== null) {
+                            $stmt->flags = match ($this->newVisibility) {
+                                'private' => \PhpParser\Modifiers::PRIVATE,
+                                'protected' => \PhpParser\Modifiers::PROTECTED,
+                                'public' => \PhpParser\Modifiers::PUBLIC,
+                                default => $stmt->flags,
+                            };
+                        }
 
-                    return $node;
+                        return $node;
+                    }
                 }
             }
         }

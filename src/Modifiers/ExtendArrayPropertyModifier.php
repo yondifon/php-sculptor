@@ -1,11 +1,11 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class ExtendArrayPropertyVisitor extends NodeVisitorAbstract
+class ExtendArrayPropertyModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $propertyName,
@@ -43,20 +43,17 @@ class ExtendArrayPropertyVisitor extends NodeVisitorAbstract
     private function extendPropertyArray(Node\PropertyItem $property): void
     {
         if (! $property->default instanceof Node\Expr\Array_) {
-            // Property is not an array, convert it to one or skip
             $property->default = new Node\Expr\Array_;
         }
 
         $existingValues = [];
 
-        // Collect existing values to avoid duplicates
         foreach ($property->default->items as $item) {
             if ($item && $item->value instanceof Node\Scalar\String_) {
                 $existingValues[] = $item->value->value;
             }
         }
 
-        // Add new items that don't already exist
         foreach ($this->additions as $key => $value) {
             if (is_int($key)) {
                 $this->addNumericArrayItem($property, $value, $existingValues);

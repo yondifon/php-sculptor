@@ -1,11 +1,11 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class ChangeMethodVisibilityVisitor extends NodeVisitorAbstract
+class ChangeMethodVisibilityModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $methodName,
@@ -21,9 +21,9 @@ class ChangeMethodVisibilityVisitor extends NodeVisitorAbstract
         foreach ($node->stmts as $stmt) {
             if ($stmt instanceof Node\Stmt\ClassMethod && $stmt->name->toString() === $this->methodName) {
                 $stmt->flags = match ($this->newVisibility) {
-                    'private' => Node\Stmt\Class_::MODIFIER_PRIVATE,
-                    'protected' => Node\Stmt\Class_::MODIFIER_PROTECTED,
-                    'public' => Node\Stmt\Class_::MODIFIER_PUBLIC,
+                    'private' => \PhpParser\Modifiers::PRIVATE,
+                    'protected' => \PhpParser\Modifiers::PROTECTED,
+                    'public' => \PhpParser\Modifiers::PUBLIC,
                     default => $stmt->flags,
                 };
 

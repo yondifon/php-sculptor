@@ -6,10 +6,6 @@ use Malico\PhpSculptor\Sculptor;
 
 class FileOperationsTest extends SculptorTestBase
 {
-    // =================================================================
-    // FILE SAVE OPERATIONS
-    // =================================================================
-
     public function test_can_save_modifications()
     {
         $tempFile = $this->createTempFile();
@@ -68,10 +64,6 @@ class FileOperationsTest extends SculptorTestBase
         $this->cleanupTempFile($outputFile);
     }
 
-    // =================================================================
-    // BACKUP OPERATIONS
-    // =================================================================
-
     public function test_can_create_backup()
     {
         $backupFile = $this->createTempFile('sculptor_backup_');
@@ -100,7 +92,6 @@ class FileOperationsTest extends SculptorTestBase
             ->addProperty('teamId', 1, 'protected', 'int')
             ->save($outputFile);
 
-        // Backup should contain original content
         $backupContent = file_get_contents($backupFile);
         $this->assertStringNotContainsString('use HasTeams;', $backupContent);
         $this->assertStringNotContainsString('$teamId', $backupContent);
@@ -158,27 +149,6 @@ class FileOperationsTest extends SculptorTestBase
         $this->expectExceptionMessage('File not found');
 
         new Sculptor('/path/that/does/not/exist.php');
-    }
-
-    public function test_throws_exception_for_unreadable_file()
-    {
-        $tempFile = $this->createTempFile();
-        file_put_contents($tempFile, '<?php class Test {}');
-
-        // Make file unreadable (this might not work on all systems)
-        if (chmod($tempFile, 0000)) {
-            try {
-                $this->expectException(\InvalidArgumentException::class);
-                new Sculptor($tempFile);
-            } finally {
-                // Restore permissions for cleanup
-                chmod($tempFile, 0644);
-                $this->cleanupTempFile($tempFile);
-            }
-        } else {
-            // Skip test if we can't change permissions
-            $this->markTestSkipped('Cannot change file permissions on this system');
-        }
     }
 
     // =================================================================

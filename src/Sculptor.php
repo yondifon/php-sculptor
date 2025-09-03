@@ -16,17 +16,14 @@ class Sculptor
 
     private readonly Standard $printer;
 
-    private readonly string $filePath;
-
     private ?string $originalCode = null;
 
     private array $ast = [];
 
     private array $pendingModifications = [];
 
-    public function __construct(string $filePath)
+    public function __construct(private readonly string $filePath)
     {
-        $this->filePath = $filePath;
         $this->parser = (new ParserFactory)->createForNewestSupportedVersion();
         $this->traverser = new NodeTraverser;
         $this->printer = new Standard;
@@ -137,7 +134,6 @@ class Sculptor
         return $this;
     }
 
-    // Property modification methods
     public function changeProperty(string $name, mixed $newDefault = null, ?string $newVisibility = null, ?string $newType = null): self
     {
         $this->pendingModifications[] = [
@@ -194,7 +190,6 @@ class Sculptor
         return $this;
     }
 
-    // Method modification methods
     public function changeMethod(string $name, ?array $parameters = null, ?string $body = null, ?string $visibility = null): self
     {
         $this->pendingModifications[] = [
@@ -240,7 +235,6 @@ class Sculptor
         return $this;
     }
 
-    // Class modification methods
     public function changeClassName(string $newName): self
     {
         $this->pendingModifications[] = [
@@ -305,7 +299,6 @@ class Sculptor
         return $this;
     }
 
-    // File-level operations
     public function addNamespace(string $namespace): self
     {
         $this->pendingModifications[] = [
@@ -326,12 +319,11 @@ class Sculptor
         return $this;
     }
 
-    // Extensible visitor registration
-    public function addVisitor(string $type, callable|string $visitorFactory): self
+    public function addModifier(string $type, callable|string $modifierFactory): self
     {
         $this->pendingModifications[] = [
             'type' => $type,
-            'visitor_factory' => $visitorFactory,
+            'factory' => $modifierFactory,
         ];
 
         return $this;
@@ -339,15 +331,10 @@ class Sculptor
 
     public function save(?string $outputPath = null): self
     {
-        $outputPath = $outputPath ?? $this->filePath;
+        $outputPath ??= $this->filePath;
 
-        // Apply all pending modifications
         $this->applyModifications();
-
-        // Generate modified code
         $modifiedCode = $this->printer->prettyPrintFile($this->ast);
-
-        // Write to file
         file_put_contents($outputPath, $modifiedCode);
 
         return $this;
@@ -366,7 +353,6 @@ class Sculptor
 
     public function toString(): string
     {
-        // Apply modifications and return as string without saving
         $this->applyModifications();
 
         return $this->printer->prettyPrintFile($this->ast);
@@ -378,31 +364,30 @@ class Sculptor
             $this->applyModification($modification);
         }
 
-        // Clear pending modifications after applying
         $this->pendingModifications = [];
     }
 
     private function applyModification(array $modification): void
     {
-        $visitor = $this->createVisitor($modification);
+        $visitor = $this->createModifier($modification);
 
         $this->traverser->addVisitor($visitor);
         $this->ast = $this->traverser->traverse($this->ast);
         $this->traverser->removeVisitor($visitor);
     }
 
-    private function createVisitor(array $modification): object
+    private function createModifier(array $modification): object
     {
-        if (isset($modification['visitor_factory'])) {
-            return $this->createCustomVisitor($modification);
+        if (isset($modification['factory'])) {
+            return $this->createCustomModifier($modification);
         }
 
-        return $this->createBuiltinVisitor($modification);
+        return $this->createBuiltinModifier($modification);
     }
 
-    private function createCustomVisitor(array $modification): object
+    private function createCustomModifier(array $modification): object
     {
-        $factory = $modification['visitor_factory'];
+        $factory = $modification['factory'];
 
         if (is_callable($factory)) {
             return $factory($modification);
@@ -411,81 +396,81 @@ class Sculptor
         return new $factory($modification);
     }
 
-    private function createBuiltinVisitor(array $modification): object
+    private function createBuiltinModifier(array $modification): object
     {
         return match ($modification['type']) {
-            'add_trait' => new Visitors\AddTraitVisitor($modification['trait']),
-            'add_method' => new Visitors\AddMethodVisitor(
+            'add_trait' => new Modifiers\AddTraitModifier($modification['trait']),
+            'add_method' => new Modifiers\AddMethodModifier(
                 $modification['name'],
                 $modification['parameters'],
                 $modification['body'],
                 $modification['visibility'],
                 $modification['override'] ?? false
             ),
-            'add_property' => new Visitors\AddPropertyVisitor(
+            'add_property' => new Modifiers\AddPropertyModifier(
                 $modification['name'],
                 $modification['default'],
                 $modification['visibility'],
                 $modification['property_type']
             ),
-            'extend_array_property' => new Visitors\ExtendArrayPropertyVisitor(
+            'extend_array_property' => new Modifiers\ExtendArrayPropertyModifier(
                 $modification['property'],
                 $modification['additions']
             ),
-            'add_use_statement' => new Visitors\AddUseStatementVisitor(
+            'add_use_statement' => new Modifiers\AddUseStatementModifier(
                 $modification['class'],
                 $modification['alias']
             ),
-            'change_property' => new Visitors\ChangePropertyVisitor(
+            'change_property' => new Modifiers\ChangePropertyModifier(
                 $modification['name'],
                 $modification['default'],
                 $modification['visibility'],
                 $modification['property_type']
             ),
-            'change_property_type' => new Visitors\ChangePropertyTypeVisitor(
+            'change_property_type' => new Modifiers\ChangePropertyTypeModifier(
                 $modification['name'],
                 $modification['property_type']
             ),
-            'change_property_default' => new Visitors\ChangePropertyDefaultVisitor(
+            'change_property_default' => new Modifiers\ChangePropertyDefaultModifier(
                 $modification['name'],
                 $modification['default']
             ),
-            'change_property_visibility' => new Visitors\ChangePropertyVisibilityVisitor(
+            'change_property_visibility' => new Modifiers\ChangePropertyVisibilityModifier(
                 $modification['name'],
                 $modification['visibility']
             ),
-            'remove_property' => new Visitors\RemovePropertyVisitor($modification['name']),
-            'change_method' => new Visitors\ChangeMethodVisitor(
+            'remove_property' => new Modifiers\RemovePropertyModifier($modification['name']),
+            'change_method' => new Modifiers\ChangeMethodModifier(
                 $modification['name'],
                 $modification['parameters'],
                 $modification['body'],
                 $modification['visibility']
             ),
-            'change_method_body' => new Visitors\ChangeMethodBodyVisitor(
+            'change_method_body' => new Modifiers\ChangeMethodBodyModifier(
                 $modification['name'],
                 $modification['body']
             ),
-            'change_method_visibility' => new Visitors\ChangeMethodVisibilityVisitor(
+            'change_method_visibility' => new Modifiers\ChangeMethodVisibilityModifier(
                 $modification['name'],
                 $modification['visibility']
             ),
-            'remove_method' => new Visitors\RemoveMethodVisitor($modification['name']),
-            'change_class_name' => new Visitors\ChangeClassNameVisitor($modification['name']),
-            'add_constant' => new Visitors\AddConstantVisitor(
-                $modification['name'],
-                $modification['value'],
-                $modification['visibility']
-            ),
-            'change_constant' => new Visitors\ChangeConstantVisitor(
+            'remove_method' => new Modifiers\RemoveMethodModifier($modification['name']),
+            'change_class_name' => new Modifiers\ChangeClassNameModifier($modification['name']),
+            'add_constant' => new Modifiers\AddConstantModifier(
                 $modification['name'],
                 $modification['value'],
                 $modification['visibility']
             ),
-            'remove_constant' => new Visitors\RemoveConstantVisitor($modification['name']),
-            'remove_trait' => new Visitors\RemoveTraitVisitor($modification['trait']),
-            'remove_use_statement' => new Visitors\RemoveUseStatementVisitor($modification['class']),
-            'add_namespace' => new Visitors\AddNamespaceVisitor($modification['namespace']),
-            'change_namespace' => new Visitors\ChangeNamespaceVisitor($modification['namespace']),
+            'change_constant' => new Modifiers\ChangeConstantModifier(
+                $modification['name'],
+                $modification['value'],
+                $modification['visibility']
+            ),
+            'remove_constant' => new Modifiers\RemoveConstantModifier($modification['name']),
+            'remove_trait' => new Modifiers\RemoveTraitModifier($modification['trait']),
+            'remove_use_statement' => new Modifiers\RemoveUseStatementModifier($modification['class']),
+            'add_namespace' => new Modifiers\AddNamespaceModifier($modification['namespace']),
+            'change_namespace' => new Modifiers\ChangeNamespaceModifier($modification['namespace']),
             'implement_interface' => throw new InvalidArgumentException('Interface implementation not yet implemented'),
             'extend_class' => throw new InvalidArgumentException('Class extension not yet implemented'),
             default => throw new InvalidArgumentException('Unknown modification type: '.$modification['type'])

@@ -15,7 +15,7 @@ class IntegrationTest extends SculptorTestBase
             // Add dependencies
             ->addUseStatement('Malico\\Teams\\HasTeams')
             ->addUseStatement('Malico\\Permissions\\HasPermissions')
-            ->addUseStatement('Carbon\\Carbon')
+            ->addUseStatement(\Carbon\Carbon::class)
 
             // Add traits
             ->addTrait('HasTeams')

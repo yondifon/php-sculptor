@@ -2,9 +2,9 @@
 
 namespace Malico\PhpSculptor\Tests;
 
-use Malico\PhpSculptor\VisitorFactory;
+use Malico\PhpSculptor\ModifierFactory;
 
-class VisitorArchitectureTest extends SculptorTestBase
+class ModifierArchitectureTest extends SculptorTestBase
 {
     // =================================================================
     // VISITOR FACTORY TESTS
@@ -12,27 +12,27 @@ class VisitorArchitectureTest extends SculptorTestBase
 
     public function test_visitor_factory_can_create_visitor()
     {
-        $visitor = VisitorFactory::make('ChangeProperty', ['status', 'active', 'public', 'string']);
+        $visitor = ModifierFactory::make('ChangeProperty', ['status', 'active', 'public', 'string']);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\ChangePropertyVisitor',
+            \Malico\PhpSculptor\Modifiers\ChangePropertyModifier::class,
             $visitor
         );
     }
 
     public function test_visitor_factory_can_create_add_trait_visitor()
     {
-        $visitor = VisitorFactory::make('AddTrait', ['HasTeams']);
+        $visitor = ModifierFactory::make('AddTrait', ['HasTeams']);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\AddTraitVisitor',
+            \Malico\PhpSculptor\Modifiers\AddTraitModifier::class,
             $visitor
         );
     }
 
     public function test_visitor_factory_can_create_add_method_visitor()
     {
-        $visitor = VisitorFactory::make('AddMethod', [
+        $visitor = ModifierFactory::make('AddMethod', [
             'getName',
             [],
             'return $this->name;',
@@ -40,7 +40,7 @@ class VisitorArchitectureTest extends SculptorTestBase
         ]);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\AddMethodVisitor',
+            \Malico\PhpSculptor\Modifiers\AddMethodModifier::class,
             $visitor
         );
     }
@@ -48,28 +48,28 @@ class VisitorArchitectureTest extends SculptorTestBase
     public function test_visitor_factory_throws_exception_for_invalid_visitor()
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Visitor class does not exist');
+        $this->expectExceptionMessage('Modifier class does not exist');
 
-        VisitorFactory::make('NonExistentVisitor', []);
+        ModifierFactory::make('NonExistentModifier', []);
     }
 
     public function test_visitor_factory_simple_method()
     {
-        $factory = VisitorFactory::simple('ChangePropertyDefault', ['name', 'default']);
+        $factory = ModifierFactory::simple('ChangePropertyDefault', ['name', 'default']);
 
         $this->assertIsCallable($factory);
 
         $visitor = $factory(['name' => 'status', 'default' => 'active']);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\ChangePropertyDefaultVisitor',
+            \Malico\PhpSculptor\Modifiers\ChangePropertyDefaultModifier::class,
             $visitor
         );
     }
 
     public function test_visitor_factory_factory_method()
     {
-        $factory = VisitorFactory::factory('ChangeProperty', fn ($modification) => [
+        $factory = ModifierFactory::factory('ChangeProperty', fn ($modification) => [
             $modification['property_name'],
             $modification['new_value'],
             $modification['visibility'] ?? 'public',
@@ -86,7 +86,7 @@ class VisitorArchitectureTest extends SculptorTestBase
         ]);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\ChangePropertyVisitor',
+            \Malico\PhpSculptor\Modifiers\ChangePropertyModifier::class,
             $visitor
         );
     }
@@ -121,8 +121,8 @@ class VisitorArchitectureTest extends SculptorTestBase
         $this->assertStringContainsString('protected string $customProperty = \'initial\';', $result);
 
         // Now test changing it with visitor factory approach
-        $changeVisitor = VisitorFactory::make('ChangePropertyDefault', ['customProperty', 'updated']);
-        $this->assertInstanceOf('Malico\\PhpSculptor\\Visitors\\ChangePropertyDefaultVisitor', $changeVisitor);
+        $changeModifier = ModifierFactory::make('ChangePropertyDefault', ['customProperty', 'updated']);
+        $this->assertInstanceOf(\Malico\PhpSculptor\Modifiers\ChangePropertyDefaultModifier::class, $changeModifier);
     }
 
     // =================================================================
@@ -156,7 +156,7 @@ class VisitorArchitectureTest extends SculptorTestBase
 
     public function test_all_core_visitors_exist()
     {
-        $coreVisitors = [
+        $coreModifiers = [
             'AddTrait',
             'AddMethod',
             'AddProperty',
@@ -169,20 +169,20 @@ class VisitorArchitectureTest extends SculptorTestBase
             'RemoveProperty',
         ];
 
-        foreach ($coreVisitors as $visitorType) {
+        foreach ($coreModifiers as $visitorType) {
             $this->assertTrue(
-                class_exists("Malico\\PhpSculptor\\Visitors\\{$visitorType}Visitor"),
-                "Core visitor {$visitorType}Visitor should exist"
+                class_exists("Malico\\PhpSculptor\\Modifiers\\{$visitorType}Modifier"),
+                "Core visitor {$visitorType}Modifier should exist"
             );
         }
     }
 
     public function test_visitor_factory_handles_empty_parameters()
     {
-        $visitor = VisitorFactory::make('AddTrait', ['HasTeams']);
+        $visitor = ModifierFactory::make('AddTrait', ['HasTeams']);
 
         $this->assertInstanceOf(
-            'Malico\\PhpSculptor\\Visitors\\AddTraitVisitor',
+            \Malico\PhpSculptor\Modifiers\AddTraitModifier::class,
             $visitor
         );
     }

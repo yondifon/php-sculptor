@@ -1,11 +1,11 @@
 <?php
 
-namespace Malico\PhpSculptor\Visitors;
+namespace Malico\PhpSculptor\Modifiers;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-class ChangePropertyVisitor extends NodeVisitorAbstract
+class ChangePropertyModifier extends NodeVisitorAbstract
 {
     public function __construct(
         private readonly string $propertyName,
@@ -73,10 +73,10 @@ class ChangePropertyVisitor extends NodeVisitorAbstract
     private function getVisibilityFlag(): int
     {
         return match ($this->newVisibility) {
-            'private' => Node\Stmt\Class_::MODIFIER_PRIVATE,
-            'protected' => Node\Stmt\Class_::MODIFIER_PROTECTED,
-            'public' => Node\Stmt\Class_::MODIFIER_PUBLIC,
-            default => Node\Stmt\Class_::MODIFIER_PROTECTED,
+            'private' => \PhpParser\Modifiers::PRIVATE,
+            'protected' => \PhpParser\Modifiers::PROTECTED,
+            'public' => \PhpParser\Modifiers::PUBLIC,
+            default => \PhpParser\Modifiers::PROTECTED,
         };
     }
 
