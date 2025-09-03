@@ -6,9 +6,6 @@ use Malico\PhpSculptor\ModifierFactory;
 
 class ModifierArchitectureTest extends SculptorTestBase
 {
-    // =================================================================
-    // VISITOR FACTORY TESTS
-    // =================================================================
 
     public function test_visitor_factory_can_create_visitor()
     {
@@ -91,9 +88,6 @@ class ModifierArchitectureTest extends SculptorTestBase
         );
     }
 
-    // =================================================================
-    // CUSTOM VISITOR INTEGRATION TESTS
-    // =================================================================
 
     public function test_can_use_visitor_factory_with_sculptor()
     {
@@ -125,9 +119,6 @@ class ModifierArchitectureTest extends SculptorTestBase
         $this->assertInstanceOf(\Malico\PhpSculptor\Modifiers\ChangePropertyDefaultModifier::class, $changeModifier);
     }
 
-    // =================================================================
-    // COMPLEX FLUENT INTERFACE WITH VISITORS
-    // =================================================================
 
     public function test_complex_operations_with_visitor_architecture()
     {
@@ -150,9 +141,6 @@ class ModifierArchitectureTest extends SculptorTestBase
         $this->assertStringContainsString('protected string $id', $result);
     }
 
-    // =================================================================
-    // VISITOR PATTERN VALIDATION
-    // =================================================================
 
     public function test_all_core_visitors_exist()
     {

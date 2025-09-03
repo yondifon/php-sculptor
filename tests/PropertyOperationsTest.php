@@ -4,9 +4,6 @@ namespace Malico\PhpSculptor\Tests;
 
 class PropertyOperationsTest extends SculptorTestBase
 {
-    // =================================================================
-    // PROPERTY ADDITION TESTS
-    // =================================================================
 
     public function test_can_add_property()
     {
@@ -69,9 +66,6 @@ class PropertyOperationsTest extends SculptorTestBase
         $this->assertStringContainsString('protected ?\\DateTime $deletedAt = null;', $result);
     }
 
-    // =================================================================
-    // PROPERTY MODIFICATION TESTS
-    // =================================================================
 
     public function test_can_change_property_type()
     {
@@ -137,9 +131,6 @@ class PropertyOperationsTest extends SculptorTestBase
         $this->assertStringContainsString('class TestClass', $result);
     }
 
-    // =================================================================
-    // ARRAY PROPERTY TESTS
-    // =================================================================
 
     public function test_can_extend_array_property()
     {

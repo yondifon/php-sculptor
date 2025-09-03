@@ -4,9 +4,6 @@ namespace Malico\PhpSculptor\Tests;
 
 class IntegrationTest extends SculptorTestBase
 {
-    // =================================================================
-    // COMPREHENSIVE INTEGRATION TESTS
-    // =================================================================
 
     public function test_complete_class_transformation()
     {

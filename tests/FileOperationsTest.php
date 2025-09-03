@@ -105,9 +105,6 @@ class FileOperationsTest extends SculptorTestBase
         $this->cleanupTempFile($outputFile);
     }
 
-    // =================================================================
-    // STRING OUTPUT OPERATIONS
-    // =================================================================
 
     public function test_can_output_as_string()
     {
@@ -139,9 +136,6 @@ class FileOperationsTest extends SculptorTestBase
         $this->assertStringContainsString('public string $newProp = \'value\';', $result);
     }
 
-    // =================================================================
-    // ERROR HANDLING
-    // =================================================================
 
     public function test_throws_exception_for_non_existent_file()
     {
@@ -151,9 +145,6 @@ class FileOperationsTest extends SculptorTestBase
         new Sculptor('/path/that/does/not/exist.php');
     }
 
-    // =================================================================
-    // FACTORY METHOD TESTS
-    // =================================================================
 
     public function test_static_make_method()
     {
@@ -177,9 +168,6 @@ class FileOperationsTest extends SculptorTestBase
         $this->assertStringContainsString('function getRole()', $result);
     }
 
-    // =================================================================
-    // CHAINING SAVE OPERATIONS
-    // =================================================================
 
     public function test_can_chain_save_with_other_operations()
     {

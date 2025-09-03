@@ -62,9 +62,14 @@ class ChangeMethodModifier extends NodeVisitorAbstract
             }
 
             if (is_array($param)) {
+                $default = null;
+                if (isset($param['default'])) {
+                    $default = $this->convertToDefaultValue($param['default']);
+                }
+
                 $paramNode = new Node\Param(
                     new Node\Expr\Variable($param['name']),
-                    $param['default'] ?? null,
+                    $default,
                     $param['type'] ? new Node\Identifier($param['type']) : null
                 );
                 $params[] = $paramNode;
@@ -84,5 +89,34 @@ class ChangeMethodModifier extends NodeVisitorAbstract
         } catch (\Exception) {
             return [new Node\Stmt\Expression(new Node\Scalar\String_($this->body))];
         }
+    }
+
+    private function convertToDefaultValue(mixed $default): ?Node\Expr
+    {
+        if ($default === null) {
+            return new Node\Expr\ConstFetch(new Node\Name('null'));
+        }
+
+        if (is_string($default)) {
+            return new Node\Scalar\String_($default);
+        }
+
+        if (is_int($default)) {
+            return new Node\Scalar\Int_($default);
+        }
+
+        if (is_float($default)) {
+            return new Node\Scalar\Float_($default);
+        }
+
+        if (is_bool($default)) {
+            return new Node\Expr\ConstFetch(new Node\Name($default ? 'true' : 'false'));
+        }
+
+        if (is_array($default)) {
+            return new Node\Expr\Array_;
+        }
+
+        return new Node\Scalar\String_(strval($default));
     }
 }

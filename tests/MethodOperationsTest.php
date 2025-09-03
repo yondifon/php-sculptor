@@ -4,9 +4,6 @@ namespace Malico\PhpSculptor\Tests;
 
 class MethodOperationsTest extends SculptorTestBase
 {
-    // =================================================================
-    // METHOD ADDITION TESTS
-    // =================================================================
 
     public function test_can_add_method()
     {
@@ -82,10 +79,6 @@ class MethodOperationsTest extends SculptorTestBase
         $this->assertStringContainsString('return $result;', $result);
     }
 
-    // =================================================================
-    // METHOD OVERRIDE PROTECTION TESTS
-    // =================================================================
-
     public function test_cannot_override_existing_method_by_default()
     {
         $sculptor = $this->createSculptor();
@@ -134,9 +127,118 @@ class MethodOperationsTest extends SculptorTestBase
         $this->assertStringContainsString('return $prefix . $this->name;', $result);
     }
 
-    // =================================================================
-    // METHOD MODIFICATION TESTS (Future functionality)
-    // =================================================================
+    public function test_can_change_method_visibility()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod('getName', null, null, 'private')
+            ->toString();
+
+        $this->assertStringContainsString('private function getName()', $result);
+        $this->assertStringNotContainsString('public function getName()', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_can_change_method_body()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod('getName', null, 'return "Modified: " . $this->name;')
+            ->toString();
+
+        $this->assertStringContainsString('return "Modified: " . $this->name;', $result);
+        $this->assertStringNotContainsString('return $this->name;', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_can_change_method_parameters()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod('getName', [
+                ['name' => 'prefix', 'type' => 'string'],
+                ['name' => 'suffix', 'type' => 'string', 'default' => ''],
+            ])
+            ->toString();
+
+        $this->assertStringContainsString('function getName(string $prefix, string $suffix = \'\')', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_can_change_method_with_simple_parameters()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod('getName', ['prefix', 'suffix'])
+            ->toString();
+
+        $this->assertStringContainsString('function getName($prefix, $suffix)', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_can_change_multiple_method_aspects()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod(
+                'getName',
+                [['name' => 'format', 'type' => 'bool', 'default' => true]],
+                'return $format ? strtoupper($this->name) : $this->name;',
+                'protected'
+            )
+            ->toString();
+
+        $this->assertStringContainsString('protected function getName(bool $format = true)', $result);
+        $this->assertStringContainsString('return $format ? strtoupper($this->name) : $this->name;', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_can_change_method_with_complex_body()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod('getName', null, '
+                if (empty($this->name)) {
+                    return "Unknown";
+                }
+                
+                return ucfirst($this->name);
+            ')
+            ->toString();
+
+        $this->assertStringContainsString('if (empty($this->name))', $result);
+        $this->assertStringContainsString('return "Unknown";', $result);
+        $this->assertStringContainsString('return ucfirst($this->name);', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_change_method_preserves_other_methods()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->addMethod('getId', [], 'return $this->id;') // Add a method first
+            ->changeMethod('getName', null, 'return "Changed";')
+            ->toString();
+
+        // Should preserve other methods
+        $this->assertStringContainsString('function getId()', $result);
+        $this->assertStringContainsString('return $this->id;', $result);
+        $this->assertStringContainsString('return "Changed";', $result);
+        $this->assertValidPhpSyntax($result);
+    }
+
+    public function test_change_nonexistent_method_does_nothing()
+    {
+        $sculptor = $this->createSculptor();
+        $result = $sculptor
+            ->changeMethod('nonExistentMethod', null, 'return "test";')
+            ->toString();
+
+        // Should not add the method or break anything
+        $this->assertStringNotContainsString('nonExistentMethod', $result);
+        $this->assertStringContainsString('function getName()', $result); // Original methods preserved
+        $this->assertValidPhpSyntax($result);
+    }
 
     public function test_can_add_multiple_methods()
     {
